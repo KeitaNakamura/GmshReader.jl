@@ -1,0 +1,11 @@
+name = "GmshReader"
+uuid = "bf82f66e-8fcd-4ce9-a12d-a25ca77d3b00"
+authors = ["Keita Nakamura <keita.nakamura.1109@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+gmsh_jll = "630162c2-fc9b-58b3-9910-8442a8a132e6"
+
+[compat]
+StaticArrays = "1"
