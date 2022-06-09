@@ -24,7 +24,7 @@ struct ElementSet
 end
 
 struct GmshFile
-    nodeset::Dict{String, Vector{NodeSet}}
+    nodeset::Dict{String, NodeSet}
     elementset::Dict{String, Vector{ElementSet}}
 end
 
@@ -64,14 +64,11 @@ end
 
 function readgmsh_nodeset()
     dimtags::Vector{Tuple{Int, Int}} = gmsh.model.getPhysicalGroups()
-    Dict{String, Vector{NodeSet}}(map(dimtags) do (dim, tag)
-        tags = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
+    Dict{String, NodeSet}(map(dimtags) do (dim, tag)
         name = gmsh.model.getPhysicalName(dim, tag)
-        group = map(tags) do tag′ # each PhysicalGroup having several entities
-            nodetags::Vector{Int}, coord::Vector{Float64}, parametriccoord = gmsh.model.mesh.getNodes(dim, tag′)
-            nodeset = NodeSet(nodetags, dim, collectwithstep(coord, 3))
-        end
-        name => group
+        nodetags::Vector{Int}, coord::Vector{Float64} = gmsh.model.mesh.getNodesForPhysicalGroup(dim, tag)
+        nodeset = NodeSet(nodetags, dim, collectwithstep(coord, 3))
+        name => nodeset
     end)
 end
 
