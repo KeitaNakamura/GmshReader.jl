@@ -1,25 +1,48 @@
 module GmshReader
 
-using StaticArrays
-
 import gmsh_jll
 include(gmsh_jll.gmsh_api)
 
 export
     readgmsh
 
-struct ElementSet{dim}
+struct NodeSet
+    nodetags::Vector{Int}
+    dim::Int
+    coord::Vector{Vector{Float64}}
+end
+
+struct ElementSet
     elementtags::Vector{Int}
     elementname::String
+    dim::Int
     order::Int
     numnodes::Int
-    localnodecoord::Vector{SVector{dim, Float64}}
+    localnodecoord::Vector{Vector{Float64}}
     numprimarynodes::Int
     connectivities::Vector{Vector{Int}}
 end
-num_elements(eltset::ElementSet) = length(eltset.connectivities)
 
-function readgmsh_elements()
+struct GmshFile
+    nodeset::Dict{String, Vector{NodeSet}}
+    elementset::Dict{String, Vector{ElementSet}}
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", gmsh::GmshFile)
+    println(io, summary(gmsh), ":")
+    show(io, mime, gmsh.nodeset)
+    show(io, mime, gmsh.elementset)
+end
+
+function collectwithstep(x::AbstractVector, step::Int)
+    if step == 0
+        [[only(x)]]
+    else
+        [x[i:i+step-1] for i in 1:step:length(x)]
+    end
+end
+
+function readgmsh_elementset()
     dimtags::Vector{Tuple{Int, Int}} = gmsh.model.getPhysicalGroups()
     Dict{String, Vector{ElementSet}}(map(dimtags) do (dim, tag)
         tags = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
@@ -29,9 +52,9 @@ function readgmsh_elements()
             sets = map(zip(elementtypes, nodetags_all, elementtags)) do (elttype, nodetags, elttags)
                 elementname::String, _dim::Int, order::Int, numnodes::Int, localnodecoord::Vector{Float64}, numprimarynodes::Int = gmsh.model.mesh.getElementProperties(elttype) 
                 @assert dim == _dim
-                conns = [nodetags[i:i + (numnodes - 1)] for i in 1:numnodes:length(nodetags)]
-                lcoord = SVector{dim, Float64}[(localnodecoord[i:i + (dim - 1)]) for i in 1:dim:length(localnodecoord)]
-                ElementSet{dim}(elttags, elementname, order, numnodes, lcoord, numprimarynodes, conns)
+                conns = collectwithstep(nodetags, numnodes)
+                lcoord = collectwithstep(localnodecoord, dim)
+                ElementSet(elttags, elementname, dim, order, numnodes, lcoord, numprimarynodes, conns)
             end
             reduce(vcat, sets) # all `dim`s are always the same in each group (maybe?)
         end
@@ -39,10 +62,17 @@ function readgmsh_elements()
     end)
 end
 
-function readgmsh_nodes()
-    nodeid, nodes = gmsh.model.mesh.getNodes()
-    dim::Int = gmsh.model.getDimension()
-    [SVector{dim}(nodes[i:i + (dim - 1)]) for i in 1:3:length(nodes)]
+function readgmsh_nodeset()
+    dimtags::Vector{Tuple{Int, Int}} = gmsh.model.getPhysicalGroups()
+    Dict{String, Vector{NodeSet}}(map(dimtags) do (dim, tag)
+        tags = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
+        name = gmsh.model.getPhysicalName(dim, tag)
+        group = map(tags) do tag′ # each PhysicalGroup having several entities
+            nodetags::Vector{Int}, coord::Vector{Float64}, parametriccoord = gmsh.model.mesh.getNodes(dim, tag′)
+            nodeset = NodeSet(nodetags, dim, collectwithstep(coord, 3))
+        end
+        name => group
+    end)
 end
 
 function readgmsh(filename::String)
@@ -55,11 +85,11 @@ function readgmsh(filename::String)
     gmsh.model.mesh.renumberNodes()
     gmsh.model.mesh.renumberElements()
 
-    nodes = readgmsh_nodes()
-    elements = readgmsh_elements()
+    nodeset = readgmsh_nodeset()
+    elementset = readgmsh_elementset()
 
     gmsh.finalize()
-    Dict{String, Any}("nodes" => nodes, "elements" => elements)
+    GmshFile(nodeset, elementset)
 end
 
 end # module
