@@ -1,6 +1,8 @@
 using GmshReader
 using Test
 
+using LinearAlgebra
+
 @testset "readgmsh" begin
     @test_throws Exception readgmsh("square")    # no extension
     @test_throws Exception readgmsh("square.ms") # wrong extension
@@ -53,6 +55,35 @@ using Test
             @test set.elementtags == [9,10,11,12]
             @test set.elementname == "Quadrilateral 4"
             @test set.connectivities == [[3,7,9,6], [6,9,5,2], [7,4,8,9], [9,8,1,5]]
+        end
+    end
+end
+
+@testset "fixsurface option" begin
+    for filename in ("cube", "cube2")
+        for fixsurface in (true, false)
+            gmsh = readgmsh("$filename.msh"; fixsurface)
+            coord = gmsh.nodeset["main"].coord
+            for (name, n) in (("left", [-1,0,0]), ("right", [1,0,0]), ("bottom", [0,-1,0]), ("top", [0,1,0]), ("back", [0,0,-1]), ("front", [0,0,1]))
+                for elementset in gmsh.elementset[name]
+                    for conn in elementset.connectivities
+                        if filename == "cube"
+                            @assert length(conn) == 3
+                        elseif filename == "cube2"
+                            @assert length(conn) == 6
+                        else
+                            error("unreachable")
+                        end
+                        x1 = coord[conn[2]] - coord[conn[1]]
+                        x2 = coord[conn[end]] - coord[conn[1]]
+                        if !fixsurface && name == "back"
+                            @test normalize(x1 × x2) ≈ -n
+                        else
+                            @test normalize(x1 × x2) ≈ n
+                        end
+                    end
+                end
+            end
         end
     end
 end
