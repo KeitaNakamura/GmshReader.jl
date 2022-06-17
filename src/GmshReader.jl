@@ -31,6 +31,7 @@ end
 function Base.show(io::IO, mime::MIME"text/plain", gmsh::GmshFile)
     println(io, summary(gmsh), ":")
     show(io, mime, gmsh.nodeset)
+    println(io)
     show(io, mime, gmsh.elementset)
 end
 
