@@ -4,7 +4,11 @@ import gmsh_jll
 include(gmsh_jll.gmsh_api)
 
 export
-    readgmsh
+    readgmsh,
+    NodeSet,
+    ElementSet,
+    PhysicalGroup,
+    GmshFile
 
 struct NodeSet
     nodetags::Vector{Int}
@@ -13,8 +17,8 @@ struct NodeSet
 end
 
 struct ElementSet
-    elementtags::Vector{Int}
     elementname::String
+    elementtags::Vector{Int}
     dim::Int
     order::Int
     numnodes::Int
@@ -23,16 +27,29 @@ struct ElementSet
     connectivities::Vector{Vector{Int}}
 end
 
-struct GmshFile
-    nodeset::Dict{String, NodeSet}
-    elementset::Dict{String, Vector{ElementSet}}
+struct Entity <: AbstractVector{ElementSet}
+    data::Vector{ElementSet}
+end
+Base.size(e::Entity) = size(e.data)
+Base.getindex(e::Entity, i::Int) = e.data[i]
+Base.convert(::Type{Entity}, data::Vector{ElementSet}) = Entity(data)
+Base.summary(io::IO, e::Entity) = print(io, string(Entity, " vector with ", length(e), " element ", ifelse(length(e)==1, "type", "types")))
+
+struct PhysicalGroup
+    nodeset::NodeSet
+    entities::Vector{Entity}
+end
+function Base.show(io::IO, ::PhysicalGroup)
+    print(io, "PhysicalGroup(nodeset, entities)")
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", gmsh::GmshFile)
-    println(io, summary(gmsh), ":")
-    show(io, mime, gmsh.nodeset)
-    println(io)
-    show(io, mime, gmsh.elementset)
+struct GmshFile
+    name::String
+    nodeset::NodeSet
+    physicalgroups::Dict{String, PhysicalGroup}
+end
+function Base.show(io::IO, file::GmshFile)
+    print(io, "GmshFile(\"", file.name, "\", nodeset, physicalgroups)")
 end
 
 function collectwithstep(x::AbstractVector, step::Int)
@@ -43,27 +60,32 @@ function collectwithstep(x::AbstractVector, step::Int)
     end
 end
 
-function readgmsh_elementset()
+function readgmsh_physicalgroup_elements()
     dimtags::Vector{Tuple{Int, Int}} = gmsh.model.getPhysicalGroups()
-    Dict{String, Vector{ElementSet}}(map(dimtags) do (dim, tag)
+    Dict{String, Vector{Entity}}(map(dimtags) do (dim, tag)
+        # loop over PhysicalGroups
+        # PhysicalGroup have several entities
+        # all entities always have the same dimension (maybe?)
         tags = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
         name = gmsh.model.getPhysicalName(dim, tag)
-        group = map(tags) do tag′ # each PhysicalGroup having several entities
+        group = map(tags) do tag′ # each entity
             elementtypes, elementtags::Vector{Vector{Int}}, nodetags_all::Vector{Vector{Int}} = gmsh.model.mesh.getElements(dim, tag′)
-            sets = map(zip(elementtypes, nodetags_all, elementtags)) do (elttype, nodetags, elttags)
+            # elements in an entity are grouped into element types
+            # and all types should be unique (maybe...)
+            # so let's make a Dict having elementnames as `keys`
+            map(zip(elementtypes, nodetags_all, elementtags)) do (elttype, nodetags, elttags)
                 elementname::String, _dim::Int, order::Int, numnodes::Int, localnodecoord::Vector{Float64}, numprimarynodes::Int = gmsh.model.mesh.getElementProperties(elttype) 
                 @assert dim == _dim
                 conns = collectwithstep(nodetags, numnodes)
                 lcoord = collectwithstep(localnodecoord, dim)
-                ElementSet(elttags, elementname, dim, order, numnodes, lcoord, numprimarynodes, conns)
+                ElementSet(elementname, elttags, dim, order, numnodes, lcoord, numprimarynodes, conns)
             end
-            reduce(vcat, sets) # all `dim`s are always the same in each group (maybe?)
         end
         name => group
     end)
 end
 
-function readgmsh_nodeset()
+function readgmsh_physicalgroup_nodes()
     dimtags::Vector{Tuple{Int, Int}} = gmsh.model.getPhysicalGroups()
     Dict{String, NodeSet}(map(dimtags) do (dim, tag)
         name = gmsh.model.getPhysicalName(dim, tag)
@@ -71,6 +93,12 @@ function readgmsh_nodeset()
         nodeset = NodeSet(nodetags, dim, collectwithstep(coord, 3))
         name => nodeset
     end)
+end
+
+function readgmsh_nodeset()
+    nodetags::Vector{Int}, coord::Vector{Float64} = gmsh.model.mesh.getNodes()
+    dim::Int = gmsh.model.getDimension()
+    NodeSet(nodetags, dim, collectwithstep(coord, 3))
 end
 
 function readgmsh(filename::String; fixsurface::Bool = false)
@@ -84,12 +112,15 @@ function readgmsh(filename::String; fixsurface::Bool = false)
     gmsh.model.mesh.renumberElements()
 
     nodeset = readgmsh_nodeset()
-    elementset = readgmsh_elementset()
-
-    gmsh.finalize()
-    file = GmshFile(nodeset, elementset)
+    physicalgroups = Dict(map(readgmsh_physicalgroup_nodes(), readgmsh_physicalgroup_elements()) do (key1, val1), (key2, val2)
+        @assert key1 == key2
+        key1 => PhysicalGroup(val1, val2)
+    end)
+    file = GmshFile(filename, nodeset, physicalgroups)
 
     fixsurface && fix_surfacemesh!(file)
+
+    gmsh.finalize()
     file
 end
 
@@ -113,10 +144,12 @@ SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
 function fix_surfacemesh!(file::GmshFile)
     # grouping with dimension
     dim_elementset = Dict{Int, Vector{ElementSet}}()
-    for (name, elementset_vector) in file.elementset
-        for elementset in elementset_vector
-            list = get!(dim_elementset, elementset.dim, ElementSet[])
-            push!(list, elementset)
+    for (name, physicalgroup) in file.physicalgroups
+        for entity in physicalgroup.entities
+            for elementset in entity
+                list = get!(dim_elementset, elementset.dim, ElementSet[])
+                push!(list, elementset)
+            end
         end
     end
     # solid elementset
