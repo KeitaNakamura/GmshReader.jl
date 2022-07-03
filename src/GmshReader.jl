@@ -3,6 +3,10 @@ module GmshReader
 import gmsh_jll
 include(gmsh_jll.gmsh_api)
 
+const IS_ACTIVE = Ref(false)
+gmsh_initialize() = !IS_ACTIVE[] && (gmsh.initialize(); IS_ACTIVE[]=true)
+gmsh_finalize() = IS_ACTIVE[] && (gmsh.finalize(); IS_ACTIVE[]=false)
+
 export
     readgmsh,
     NodeSet,
@@ -99,7 +103,7 @@ function readgmsh(filename::String; fixsurface::Bool = false)
     @assert endswith(filename, ".msh")
     @assert isfile(filename)
 
-    gmsh.initialize()
+    gmsh_initialize()
     gmsh.open(filename)
 
     gmsh.model.mesh.renumberNodes()
@@ -111,7 +115,7 @@ function readgmsh(filename::String; fixsurface::Bool = false)
 
     fixsurface && fix_surfacemesh!(file)
 
-    gmsh.finalize()
+    gmsh_finalize()
     file
 end
 
@@ -170,6 +174,26 @@ function fix_surfacemesh!(surface_conn::Vector{Int}, solid_elementset_vector::Ve
             end
         end
     end
+end
+
+#############
+# Utilities #
+#############
+
+"""
+    element_properties(familyname, order, serendip = false)
+
+Return element properties given its family name `familyname` ("Point", "Line", "Triangle", "Quadrangle",
+"Tetrahedron", "Pyramid", "Prism", "Hexahedron") and polynomial order order. If serendip is true,
+return the corresponding serendip element type (element without interior nodes).
+"""
+function element_properties(familyname::String, order::Int, serendip::Bool = false)
+    gmsh_initialize()
+    elementtype = gmsh.model.mesh.getElementType(familyname, order, serendip)
+    elementname::String, dim::Int, order::Int, numnodes::Int, localnodecoord′::Vector{Float64}, numprimarynodes::Int = gmsh.model.mesh.getElementProperties(elementtype)
+    gmsh_finalize()
+    localnodecoord = collectwithstep(localnodecoord′, dim)
+    (; elementname, dim, order, numnodes, localnodecoord, numprimarynodes)
 end
 
 end # module
