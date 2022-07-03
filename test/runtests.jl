@@ -89,3 +89,32 @@ end
         end
     end
 end
+
+@testset "Utilities" begin
+    @testset "element_properties" begin
+        # quad 4
+        prop = GmshReader.element_properties("Quadrangle", 1)
+        @test prop.elementname == "Quadrilateral 4"
+        @test prop.dim == 2
+        @test prop.order == 1
+        @test prop.numnodes == 4
+        @test prop.localnodecoord == [[-1.0,-1.0], [1.0,-1.0], [1.0,1.0], [-1.0,1.0]]
+        @test prop.numprimarynodes == 4
+        # quad 8
+        prop = GmshReader.element_properties("Quadrangle", 2, true)
+        @test prop.elementname == "Quadrilateral 8"
+        @test prop.dim == 2
+        @test prop.order == 2
+        @test prop.numnodes == 8
+        @test prop.localnodecoord == [[-1.0,-1.0], [1.0,-1.0], [1.0,1.0], [-1.0,1.0], [0.0,-1.0], [1.0,0.0], [0.0,1.0], [-1.0,0.0]]
+        @test prop.numprimarynodes == 4
+        # quad 9
+        prop = GmshReader.element_properties("Quadrangle", 2)
+        @test prop.elementname == "Quadrilateral 9"
+        @test prop.dim == 2
+        @test prop.order == 2
+        @test prop.numnodes == 9
+        @test prop.localnodecoord == [[-1.0,-1.0], [1.0,-1.0], [1.0,1.0], [-1.0,1.0], [0.0,-1.0], [1.0,0.0], [0.0,1.0], [-1.0,0.0], [0.0,0.0]]
+        @test prop.numprimarynodes == 4
+    end
+end
