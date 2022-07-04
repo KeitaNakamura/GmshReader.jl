@@ -123,7 +123,7 @@ end
 # fixsurface option #
 #####################
 
-SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
+const SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
     "Line 2" => [[1], [2]],
     "Line 3" => [[1], [2]],
     "Triangle 3" => [[1,2], [2,3], [3,1]],
@@ -162,12 +162,13 @@ function fix_surfacemesh!(file::GmshFile)
 end
 
 function fix_surfacemesh!(surface_conn::Vector{Int}, solid_elementset_vector::Vector{ElementSet})
+    surface_conn′ = sort(surface_conn)
     for elementset in solid_elementset_vector
         solid_name = elementset.elementname
         surface_list = SURFACE_LIST[solid_name]
         for solid_conn in elementset.connectivities
             for inds in surface_list
-                if Set(solid_conn[inds]) == Set(surface_conn)
+                if sort!(solid_conn[inds]) == surface_conn′
                     @. surface_conn = solid_conn[inds]
                     return surface_conn
                 end
