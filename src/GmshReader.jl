@@ -84,7 +84,6 @@ function readgmsh_physicalgroups()
             elementtypes, elementtags::Vector{Vector{Int}}, nodetags_all::Vector{Vector{Int}} = gmsh.model.mesh.getElements(dim, tag′)
             # elements in an entity are grouped into element types
             # and all types should be unique (maybe...)
-            # so let's make a Dict having elementnames as `keys`
             map(zip(elementtypes, nodetags_all, elementtags)) do (elttype, nodetags, elttags)
                 elementname::String, _dim::Int, order::Int, numnodes::Int, localnodecoord::Vector{Float64}, numprimarynodes::Int = gmsh.model.mesh.getElementProperties(elttype) 
                 @assert dim == _dim
@@ -124,16 +123,23 @@ end
 #####################
 
 const SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
+    # Line
     "Line 2" => [[1], [2]],
     "Line 3" => [[1], [2]],
-    "Triangle 3" => [[1,2], [2,3], [3,1]],
-    "Triangle 6" => [[1,4,2], [2,5,3], [3,6,1]],
-    "Quadrilateral 4" => [[1,2], [2,3], [3,4], [4,1]],
-    "Quadrilateral 9" => [[1,5,2], [2,6,3], [3,7,4], [4,8,1]],
-    "Tetrahedron 4"  => [[1,4,3], [4,2,3], [2,1,3], [1,2,4]],
-    "Tetrahedron 10" => [[1,8,4,9,3,7], [4,10,2,6,3,9], [2,5,1,7,3,6], [1,5,2,10,4,8]],
-    "Hexahedron 8"  => [[5,6,7,8], [2,1,4,3], [1,5,8,4], [6,2,3,7], [1,2,6,5], [8,7,3,4]],
-    "Hexahedron 20" => [[5,17,6,19,7,20,8,18], [2,9,1,10,4,14,3,12], [1,11,5,18,8,16,4,10], [6,13,2,12,3,15,7,19], [1,9,2,13,6,17,5,11], [8,20,7,15,3,14,4,16]],
+    # Triangle
+    "Triangle 3" => [[1,2],   [2,3],   [3,1]  ],
+    "Triangle 6" => [[1,2,4], [2,3,5], [3,1,6]],
+    # Quadrangle
+    "Quadrilateral 4" => [[1,2],   [2,3],   [3,4],   [4,1]  ],
+    "Quadrilateral 8" => [[1,2,5], [2,3,6], [3,4,7], [4,1,8]],
+    "Quadrilateral 9" => [[1,2,5], [2,3,6], [3,4,7], [4,1,8]],
+    # Tetrahedron
+    "Tetrahedron 4"  => [[1,4,3],       [4,2,3],        [2,1,3],       [1,2,4]       ],
+    "Tetrahedron 10" => [[1,4,3,8,9,7], [4,2,3,10,6,9], [2,1,3,5,7,6], [1,2,4,5,10,8]],
+    # Hexahedron
+    "Hexahedron 8"  => [[5,6,7,8],                [2,1,4,3],               [1,5,8,4],                [6,2,3,7],                [1,2,6,5],               [8,7,3,4]               ],
+    "Hexahedron 20" => [[5,6,7,8,17,19,20,18],    [2,1,4,3,9,10,14,12],    [1,5,8,4,11,18,16,10],    [6,2,3,7,13,12,15,19],    [1,2,6,5,9,13,17,11],    [8,7,3,4,20,15,14,16]   ],
+    "Hexahedron 27" => [[5,6,7,8,17,19,20,18,26], [2,1,4,3,9,10,14,12,21], [1,5,8,4,11,18,16,10,23], [6,2,3,7,13,12,15,19,24], [1,2,6,5,9,13,17,11,22], [8,7,3,4,20,15,14,16,25]],
 )
 
 function fix_surfacemesh!(file::GmshFile)
@@ -152,7 +158,7 @@ function fix_surfacemesh!(file::GmshFile)
     solid_elementset_vector = dim_elementset[dim]
     # loop over surface elementset
     for (dim′, elementset_vector) in dim_elementset
-        dim′ == dim && continue
+        dim′ == dim && continue # skip solid elements
         for elementset in elementset_vector
             for conn in elementset.connectivities # loop over elements
                 fix_surfacemesh!(conn, solid_elementset_vector)
