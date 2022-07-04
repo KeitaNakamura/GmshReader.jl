@@ -2,6 +2,7 @@ using GmshReader
 using Test
 
 using LinearAlgebra
+using Statistics
 
 @testset "readgmsh" begin
     @test_throws Exception readgmsh("square")    # no extension
@@ -60,28 +61,71 @@ using LinearAlgebra
     end
 end
 
+function compute_normal(solidfamily::String, facenodes::Vector{Vector{Float64}})
+    if solidfamily == "Triangle" || solidfamily == "Quadrangle"
+        v = facenodes[2] - facenodes[1]
+        n = [v[2], -v[1]]
+        return normalize(n)
+    end
+    if solidfamily == "Tetrahedron"
+        v1 = facenodes[2] - facenodes[1]
+        v2 = facenodes[3] - facenodes[1]
+        return normalize(v1 × v2)
+    end
+    if solidfamily == "Hexahedron"
+        v1 = facenodes[2] - facenodes[1]
+        v2 = facenodes[4] - facenodes[1]
+        return normalize(v1 × v2)
+    end
+    error()
+end
+
 @testset "fixsurface option" begin
-    for filename in ("cube", "cube2")
-        for fixsurface in (true, false)
-            gmsh = readgmsh("$filename.msh"; fixsurface)
-            coord = gmsh.nodeset.coord
-            phygroups = gmsh.physicalgroups
-            for (name, n) in (("left", [-1,0,0]), ("right", [1,0,0]), ("bottom", [0,-1,0]), ("top", [0,1,0]), ("back", [0,0,-1]), ("front", [0,0,1]))
-                for elementset in only(phygroups[name].entities)
-                    for conn in elementset.connectivities
-                        if filename == "cube"
-                            @assert length(conn) == 3
-                        elseif filename == "cube2"
-                            @assert length(conn) == 6
-                        else
-                            error("unreachable")
-                        end
-                        x1 = coord[conn[2]] - coord[conn[1]]
-                        x2 = coord[conn[end]] - coord[conn[1]]
-                        if !fixsurface && name == "back"
-                            @test normalize(x1 × x2) ≈ -n
-                        else
-                            @test normalize(x1 × x2) ≈ n
+    @testset "$(GmshReader.element_properties(familyname, args...).elementname)" for (familyname, args...) in (
+            ("Triangle",    1),
+            ("Triangle",    2),
+            ("Quadrangle",  1),
+            ("Quadrangle",  2, true),
+            ("Quadrangle",  2),
+            ("Tetrahedron", 1),
+            ("Tetrahedron", 2),
+            ("Hexahedron",  1),
+            ("Hexahedron",  2, true),
+            ("Hexahedron",  2),
+        )
+        prop = GmshReader.element_properties(familyname, args...)
+        surface_list = GmshReader.SURFACE_LIST[prop.elementname]
+        for conn in surface_list
+            surface_nodes = prop.localnodecoord[conn]
+            n = compute_normal(familyname, surface_nodes)
+            xc = mean(prop.localnodecoord)
+            xc_surface = mean(surface_nodes)
+            @test (xc_surface - xc) ⋅ n > 0 # normal vector is regarded as outer direction when both vectors are the same direction
+        end
+    end
+    @testset "readgmsh" begin
+        for filename in ("cube", "cube2")
+            for fixsurface in (true, false)
+                gmsh = readgmsh(joinpath(@__DIR__, "$filename.msh"); fixsurface)
+                coord = gmsh.nodeset.coord
+                phygroups = gmsh.physicalgroups
+                for (name, n) in (("left", [-1,0,0]), ("right", [1,0,0]), ("bottom", [0,-1,0]), ("top", [0,1,0]), ("back", [0,0,-1]), ("front", [0,0,1]))
+                    for elementset in only(phygroups[name].entities)
+                        for conn in elementset.connectivities
+                            if filename == "cube"
+                                @assert length(conn) == 3
+                            elseif filename == "cube2"
+                                @assert length(conn) == 6
+                            else
+                                error("unreachable")
+                            end
+                            x1 = coord[conn[2]] - coord[conn[1]]
+                            x2 = coord[conn[end]] - coord[conn[1]]
+                            if !fixsurface && name == "back"
+                                @test normalize(x1 × x2) ≈ -n
+                            else
+                                @test normalize(x1 × x2) ≈ n
+                            end
                         end
                     end
                 end
