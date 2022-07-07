@@ -122,7 +122,7 @@ end
 # fixsurface option #
 #####################
 
-const SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
+const FACE_LIST = Dict{String, Vector{Vector{Int}}}(
     # Line
     "Line 2" => [[1], [2]],
     "Line 3" => [[1], [2]],
@@ -144,39 +144,41 @@ const SURFACE_LIST = Dict{String, Vector{Vector{Int}}}(
 
 function fix_surfacemesh!(file::GmshFile)
     # grouping with dimension
-    dim_elementset = Dict{Int, Vector{ElementSet}}()
+    dim2elementsets = Dict{Int, Vector{ElementSet}}()
     for (name, physicalgroup) in file.physicalgroups
         for entity in physicalgroup.entities
             for elementset in entity
-                list = get!(dim_elementset, elementset.dim, ElementSet[])
+                list = get!(dim2elementsets, elementset.dim, ElementSet[])
                 push!(list, elementset)
             end
         end
     end
-    # solid elementset
-    dim = maximum(keys(dim_elementset))
-    solid_elementset_vector = dim_elementset[dim]
-    # loop over surface elementset
-    for (dim′, elementset_vector) in dim_elementset
-        dim′ == dim && continue # skip solid elements
-        for elementset in elementset_vector
-            for conn in elementset.connectivities # loop over elements
-                fix_surfacemesh!(conn, solid_elementset_vector)
-            end
-        end
-    end
-end
 
-function fix_surfacemesh!(surface_conn::Vector{Int}, solid_elementset_vector::Vector{ElementSet})
-    surface_conn′ = sort(surface_conn)
-    for elementset in solid_elementset_vector
-        solid_name = elementset.elementname
-        surface_list = SURFACE_LIST[solid_name]
-        for solid_conn in elementset.connectivities
-            for inds in surface_list
-                if sort!(solid_conn[inds]) == surface_conn′
-                    @. surface_conn = solid_conn[inds]
-                    return surface_conn
+    # solid elementset
+    dim = maximum(keys(dim2elementsets))
+    solid_eltsets = dim2elementsets[dim]
+    face_eltsets_vec = [eltsets for (d,eltsets) in dim2elementsets if d != dim]
+
+    # loop over surface elementset and sort! all connectivities
+    for face_eltsets in face_eltsets_vec, elementset in face_eltsets
+        foreach(sort!, elementset.connectivities)
+    end
+
+    # loop over all solid elements
+    @inbounds for solid_eltset in solid_eltsets
+        solid_name = solid_eltset.elementname
+        facelist = FACE_LIST[solid_name]
+        tmp = similar(first(facelist))
+        for conn in solid_eltset.connectivities
+            for inds in facelist
+                tmp .= @view conn[inds]
+                sort!(tmp)
+                # check all surface elements
+                for face_eltsets in face_eltsets_vec, face_eltset in face_eltsets, face_conn in face_eltset.connectivities
+                    if tmp == face_conn
+                        face_conn .= @view conn[inds]
+                        break
+                    end
                 end
             end
         end
