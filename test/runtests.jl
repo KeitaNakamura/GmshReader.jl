@@ -94,7 +94,7 @@ end
             ("Hexahedron",  2),
         )
         prop = GmshReader.element_properties(familyname, args...)
-        surface_list = GmshReader.SURFACE_LIST[prop.elementname]
+        surface_list = GmshReader.FACE_LIST[prop.elementname]
         for conn in surface_list
             surface_nodes = prop.localnodecoord[conn]
             n = compute_normal(familyname, surface_nodes)
