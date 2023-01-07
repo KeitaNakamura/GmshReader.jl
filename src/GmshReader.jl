@@ -192,9 +192,9 @@ end
 """
     element_properties(familyname, order, serendip = false)
 
-Return element properties given its family name `familyname` ("Point", "Line", "Triangle", "Quadrangle",
-"Tetrahedron", "Pyramid", "Prism", "Hexahedron") and polynomial order order. If serendip is true,
-return the corresponding serendip element type (element without interior nodes).
+Return element properties given its family name `familyname` ("Point", "Line", "Triangle",
+"Quadrangle", "Tetrahedron", "Pyramid", "Prism", "Hexahedron") and polynomial `order`.
+If `serendip` is `true`, return the corresponding serendip element type (element without interior nodes).
 """
 function element_properties(familyname::String, order::Int, serendip::Bool = false)
     gmsh_initialize()
