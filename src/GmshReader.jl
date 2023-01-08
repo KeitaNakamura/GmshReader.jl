@@ -7,12 +7,7 @@ const IS_ACTIVE = Ref(false)
 gmsh_initialize() = !IS_ACTIVE[] && (gmsh.initialize(); IS_ACTIVE[]=true)
 gmsh_finalize() = IS_ACTIVE[] && (gmsh.finalize(); IS_ACTIVE[]=false)
 
-export
-    readgmsh,
-    NodeSet,
-    ElementSet,
-    PhysicalGroup,
-    GmshFile
+export readgmsh
 
 struct NodeSet
     nodetags::Vector{Int}
@@ -47,30 +42,6 @@ function Base.show(io::IO, ::PhysicalGroup)
     print(io, "PhysicalGroup(nodeset, entities)")
 end
 
-"""
-# GmshFile structure
-
-```
-GmshFile
-├── <name> :: String
-├── <nodeset> :: NodeSet
-└── <physicalgroups> :: Dict{String, PhysicalGroup}
-    │
-    ├── key1 => value1
-    │           ├── <nodeset> :: NodeSet
-    │           └── <entities> :: Vector{Entity}
-    │               │
-    │               ├── entity1 :: Entity
-    │               │   ├── elementset1 :: ElementSet
-    │               │   └── elementset2 :: ElementSet
-    │               │
-    │               └── entity2 :: Entity
-    │                   ├ ...
-    │
-    └── key2 => value2
-                ├ ...
-```
-"""
 struct GmshFile
     name::String
     nodeset::NodeSet
@@ -122,6 +93,36 @@ function readgmsh_physicalgroups()
     end)
 end
 
+"""
+    readgmsh(mshfile::String; outward_surface_normals::Bool = true)
+
+Read `mshfile` (`.msh`) and return `GmshReader.GmshFile`.
+When `outward_surface_normals` (`true` by default) is enabled, surface mesh is
+modified so that its normals are always outward vector on the surface.
+
+# `GmshReader.GmshFile` structure
+
+```
+GmshReader.GmshFile
+├── <name> :: String
+├── <nodeset> :: GmshReader.NodeSet
+└── <physicalgroups> :: Dict{String, GmshReader.PhysicalGroup}
+    │
+    ├── key1 => value1
+    │           ├── <nodeset> :: GmshReader.NodeSet
+    │           └── <entities> :: Vector{GmshReader.Entity}
+    │               │
+    │               ├── entity1 :: GmshReader.Entity
+    │               │   ├── elementset1 :: GmshReader.ElementSet
+    │               │   └── elementset2 :: GmshReader.ElementSet
+    │               │
+    │               └── entity2 :: GmshReader.Entity
+    │                   ├ ...
+    │
+    └── key2 => value2
+                ├ ...
+```
+"""
 function readgmsh(filename::String; outward_surface_normals::Bool = true)
     @assert endswith(filename, ".msh")
     @assert isfile(filename)
