@@ -122,7 +122,7 @@ function readgmsh_physicalgroups()
     end)
 end
 
-function readgmsh(filename::String; fixsurface::Bool = false)
+function readgmsh(filename::String; outward_surface_normals::Bool = true)
     @assert endswith(filename, ".msh")
     @assert isfile(filename)
 
@@ -136,15 +136,15 @@ function readgmsh(filename::String; fixsurface::Bool = false)
     physicalgroups = readgmsh_physicalgroups()
     file = GmshFile(filename, nodeset, physicalgroups)
 
-    fixsurface && fix_surfacemesh!(file)
+    outward_surface_normals && outward_surface_normals!!(file)
 
     gmsh_finalize()
     file
 end
 
-#####################
-# fixsurface option #
-#####################
+##################################
+# outward_surface_normals option #
+##################################
 
 const FACE_LIST = Dict{String, Vector{Vector{Int}}}(
     # Line
@@ -166,7 +166,7 @@ const FACE_LIST = Dict{String, Vector{Vector{Int}}}(
     "Hexahedron 27" => [[5,6,7,8,17,19,20,18,26], [2,1,4,3,9,10,14,12,21], [1,5,8,4,11,18,16,10,23], [6,2,3,7,13,12,15,19,24], [1,2,6,5,9,13,17,11,22], [8,7,3,4,20,15,14,16,25]],
 )
 
-function fix_surfacemesh!(file::GmshFile)
+function outward_surface_normals!!(file::GmshFile)
     # grouping with dimension
     dim2elementsets = Dict{Int, Vector{ElementSet}}()
     for (name, physicalgroup) in file.physicalgroups

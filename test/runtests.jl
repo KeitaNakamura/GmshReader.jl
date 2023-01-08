@@ -80,7 +80,7 @@ function compute_normal(solidfamily::String, facenodes::Vector{Vector{Float64}})
     error()
 end
 
-@testset "fixsurface option" begin
+@testset "outward_surface_normals option" begin
     @testset "$(GmshReader.element_properties(familyname, args...).elementname)" for (familyname, args...) in (
             ("Triangle",    1),
             ("Triangle",    2),
@@ -105,8 +105,8 @@ end
     end
     @testset "readgmsh" begin
         for filename in ("cube", "cube2")
-            for fixsurface in (true, false)
-                gmsh = readgmsh(joinpath(@__DIR__, "$filename.msh"); fixsurface)
+            for outward_surface_normals in (true, false)
+                gmsh = readgmsh(joinpath(@__DIR__, "$filename.msh"); outward_surface_normals)
                 coord = gmsh.nodeset.coord
                 phygroups = gmsh.physicalgroups
                 for (name, n) in (("left", [-1,0,0]), ("right", [1,0,0]), ("bottom", [0,-1,0]), ("top", [0,1,0]), ("back", [0,0,-1]), ("front", [0,0,1]))
@@ -121,7 +121,7 @@ end
                             end
                             x1 = coord[conn[2]] - coord[conn[1]]
                             x2 = coord[conn[end]] - coord[conn[1]]
-                            if !fixsurface && name == "back"
+                            if !outward_surface_normals && name == "back"
                                 @test normalize(x1 × x2) ≈ -n
                             else
                                 @test normalize(x1 × x2) ≈ n
