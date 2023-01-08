@@ -8,7 +8,7 @@ using Statistics
     @test_throws Exception readgmsh("square")    # no extension
     @test_throws Exception readgmsh("square.ms") # wrong extension
 
-    gmsh = (@inferred readgmsh("square.msh"))::GmshFile
+    gmsh = (@inferred readgmsh("square.msh"))::GmshReader.GmshFile
 
     phygroups = gmsh.physicalgroups
     @testset "Nodes" begin
