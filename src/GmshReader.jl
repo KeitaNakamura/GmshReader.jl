@@ -47,6 +47,30 @@ function Base.show(io::IO, ::PhysicalGroup)
     print(io, "PhysicalGroup(nodeset, entities)")
 end
 
+"""
+# GmshFile structure
+
+```
+GmshFile
+├── <name> :: String
+├── <nodeset> :: NodeSet
+└── <physicalgroups> :: Dict{String, PhysicalGroup}
+    │
+    ├── key1 => value1
+    │           ├── <nodeset> :: NodeSet
+    │           └── <entities> :: Vector{Entity}
+    │               │
+    │               ├── entity1 :: Entity
+    │               │   ├── elementset1 :: ElementSet
+    │               │   └── elementset2 :: ElementSet
+    │               │
+    │               └── entity2 :: Entity
+    │                   ├ ...
+    │
+    └── key2 => value2
+                ├ ...
+```
+"""
 struct GmshFile
     name::String
     nodeset::NodeSet
@@ -77,7 +101,7 @@ function readgmsh_physicalgroups()
         nodetags::Vector{Int}, coord::Vector{Float64} = gmsh.model.mesh.getNodesForPhysicalGroup(dim, tag)
         nodeset = NodeSet(nodetags, dim, collectwithstep(coord, 3))
 
-        # PhysicalGroup have several entities
+        # PhysicalGroup have entities
         # all entities always have the same dimension (maybe?)
         tags = gmsh.model.getEntitiesForPhysicalGroup(dim, tag)
         entities = map(tags) do tag′ # each entity
@@ -192,9 +216,9 @@ end
 """
     element_properties(familyname, order, serendip = false)
 
-Return element properties given its family name `familyname` ("Point", "Line", "Triangle", "Quadrangle",
-"Tetrahedron", "Pyramid", "Prism", "Hexahedron") and polynomial order order. If serendip is true,
-return the corresponding serendip element type (element without interior nodes).
+Return element properties given its family name `familyname` ("Point", "Line", "Triangle",
+"Quadrangle", "Tetrahedron", "Pyramid", "Prism", "Hexahedron") and polynomial `order`.
+If `serendip` is `true`, return the corresponding serendip element type (element without interior nodes).
 """
 function element_properties(familyname::String, order::Int, serendip::Bool = false)
     gmsh_initialize()
